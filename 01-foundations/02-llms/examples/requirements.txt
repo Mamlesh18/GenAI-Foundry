@@ -1,0 +1,7 @@
+# Foundations track dependencies.
+# Install with:  pip install -r requirements.txt
+
+groq>=0.11.0              # Groq SDK      -> key at https://console.groq.com/keys
+google-genai>=0.3.0       # Gemini SDK    -> key at https://aistudio.google.com/apikey
+python-dotenv>=1.0.0      # loads a local .env file so keys stay out of your code
+numpy>=1.24.0             # used by the from-scratch attention examples
