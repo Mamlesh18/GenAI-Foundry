@@ -45,7 +45,7 @@ def search(query):
 
 
 def calculator(expression):
-    """Evaluate a arithmetic expression, refusing anything that is not arithmetic."""
+    """Evaluate an arithmetic expression, refusing anything that is not arithmetic."""
     if not re.fullmatch(r"[\d\s\.\+\-\*\/\(\)]+", expression):
         return "Error: only digits and + - * / ( ) are allowed."
     try:
