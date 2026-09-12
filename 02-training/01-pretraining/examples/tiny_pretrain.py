@@ -29,8 +29,8 @@ BLOCK_SIZE = 64      # context length: how many characters the model can look ba
 D_MODEL = 128        # embedding dimension
 N_HEADS = 4
 N_LAYERS = 3
-BATCH_SIZE = 32
-STEPS = 1500
+BATCH_SIZE = 16
+STEPS = 1000
 LR = 3e-3
 
 
@@ -38,26 +38,52 @@ LR = 3e-3
 # Data -- character-level. A real run uses a BPE tokenizer over trillions of
 # tokens; the only thing that changes is scale.
 # ---------------------------------------------------------------------------
-TEXT = """
+TRAIN_TEXT = """
 The transformer is a neural network architecture based entirely on attention.
 Attention lets every token look at every other token and decide what matters.
 The model learns by predicting the next token in a sequence, over and over.
 There are no labels in pretraining. The text itself is the label, because the
 next token is always sitting right there in the data. This is called
-self-supervised learning, and it is what makes training on the whole internet
-possible. A model that predicts the next token well has learned grammar, facts,
-style, and a surprising amount of reasoning, purely as a side effect of that
-one simple objective repeated trillions of times.
-""" * 40
+self-supervised learning, and it is what makes training on the internet
+possible. A model that predicts the next token well has learned grammar,
+facts, style, and a surprising amount of reasoning, purely as a side effect
+of that one simple objective repeated trillions of times.
+A tokenizer splits text into pieces and maps each piece to an integer. Models
+never see characters or words, only these integers, which is why they struggle
+to count the letters inside a word. Subword tokenization keeps the vocabulary
+small while still being able to represent any string at all.
+Embeddings place text into a space where similar meanings sit near each other.
+Distance in that space is a measure of meaning, so searching for a passage
+becomes searching for a nearby point, which computers are very good at.
+Training a large model costs millions of dollars and takes weeks on thousands
+of graphics cards. Fine tuning an existing model costs very little and can be
+done on a single card in an afternoon. That difference is why almost everyone
+starts from weights that somebody else has already paid to produce.
+A residual connection adds the input of a layer to its output. This gives the
+gradient a short path back through a deep stack of layers, and it lets each
+layer make a small edit to the representation rather than rewriting it.
+Normalisation keeps the numbers flowing through the network in a stable range,
+so that training does not diverge as the network gets deeper and deeper.
+""" * 12
 
-chars = sorted(set(TEXT))
+# A genuinely held-out passage. It shares vocabulary and style with the
+# training text but not a single sentence, so validation loss measures
+# GENERALISATION rather than memorisation. Slicing one repeated corpus into
+# train and val -- a very common mistake -- would measure neither.
+VAL_TEXT = """
+The attention mechanism compares a query against every key and uses the result
+to take a weighted average of the values. Scaling the scores keeps the softmax
+from saturating. Several such operations run in parallel as separate heads, and
+each head is free to learn a different kind of relationship between positions.
+""" * 4
+
+chars = sorted(set(TRAIN_TEXT + VAL_TEXT))
 VOCAB_SIZE = len(chars)
 stoi = {ch: i for i, ch in enumerate(chars)}
 itos = {i: ch for ch, i in stoi.items()}
 
-data = torch.tensor([stoi[c] for c in TEXT], dtype=torch.long)
-split = int(0.9 * len(data))
-train_data, val_data = data[:split], data[split:]
+encode = lambda s: torch.tensor([stoi[c] for c in s], dtype=torch.long)
+train_data, val_data = encode(TRAIN_TEXT), encode(VAL_TEXT)
 
 
 def get_batch(source):
@@ -196,10 +222,13 @@ def main():
         loss.backward()
         optimizer.step()
 
-    print(f"\ntrained in {time.time() - start_time:.1f}s on {torch.get_default_dtype()} CPU")
+    elapsed = time.time() - start_time
+    final_train = estimate_loss(model, train_data)
+    final_val = estimate_loss(model, val_data)
+    print(f"\ntrained in {elapsed:.1f}s on CPU")
 
     print("\n" + "=" * 72)
-    print("SAMPLES")
+    print("SAMPLE")
     print("=" * 72)
     print(f"\n{sample(model)}\n")
 
@@ -207,14 +236,25 @@ def main():
     print("WHAT JUST HAPPENED")
     print("=" * 72)
     print(
-        f"Loss fell from ~{math.log(VOCAB_SIZE):.2f} (uniform guessing) toward ~1.5.\n"
-        "Perplexity is exp(loss): at loss 1.5 the model is effectively choosing\n"
-        "between ~4.5 characters instead of the full vocabulary.\n\n"
+        f"Loss fell from {math.log(VOCAB_SIZE):.2f} (uniform guessing over {VOCAB_SIZE} characters)\n"
+        f"to {final_train:.2f} on training text and {final_val:.2f} on held-out text.\n\n"
+        f"Perplexity is exp(loss). At {final_val:.2f} the model is effectively choosing\n"
+        f"between about {math.exp(final_val):.1f} characters instead of all {VOCAB_SIZE}.\n\n"
         "Nothing was labelled. The next character was always sitting in the data,\n"
         "so the text supervised itself. That is the entire trick that makes\n"
-        "training on the whole internet possible.\n\n"
-        "Scale this up -- BPE tokens instead of characters, 15 trillion tokens\n"
-        "instead of 20,000, 32 layers instead of 3, thousands of GPUs for weeks --\n"
+        "training on the whole internet possible.\n"
+    )
+    gap = final_val - final_train
+    print(
+        f"Note the train/val gap of {gap:.2f}. The validation passage shares style and\n"
+        "vocabulary with the training text but contains none of its sentences, so\n"
+        "this gap is the price of memorisation: whatever the model learned that was\n"
+        "specific to the training text does not transfer.\n\n"
+        "Push the gap wider by training longer on less text -- that is overfitting,\n"
+        "and at real scale it is exactly why pretraining corpora are aggressively\n"
+        "deduplicated. Duplicated documents get memorised rather than generalised from.\n\n"
+        "Scale this up -- BPE tokens instead of characters, 15 trillion tokens instead\n"
+        f"of {len(train_data):,}, 32 layers instead of {N_LAYERS}, thousands of GPUs for weeks --\n"
         "and you have Llama 3. The loop above does not change."
     )
 
