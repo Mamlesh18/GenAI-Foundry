@@ -1,0 +1,68 @@
+# Continued pretraining with LLaMA-Factory
+# ---------------------------------------------------------------------------
+# Takes an existing base model and keeps training it on YOUR domain text with
+# the same next-token objective. This is the accessible version of pretraining:
+# you are not starting from random weights, you are adding domain knowledge.
+#
+# Use this when your domain has vocabulary and phrasing the base model rarely
+# saw -- clinical notes, legal contracts, a large private codebase, a language
+# that was underrepresented.
+#
+# Do NOT use this to add facts. Facts belong in retrieval. See ../../../06-rag/.
+#
+# Run:
+#   llamafactory-cli train llamafactory_pretrain.yaml
+#
+# Docs: https://llamafactory.readthedocs.io/
+
+### model
+model_name_or_path: Qwen/Qwen2.5-1.5B     # a BASE model, not an Instruct one
+trust_remote_code: true
+
+### method
+stage: pt                                  # pt = pretraining (next-token on raw text)
+do_train: true
+finetuning_type: lora                      # full pretraining of 1.5B needs ~24GB+
+lora_rank: 32                              # higher than SFT: learning new domain
+lora_alpha: 64                             # knowledge needs more capacity than
+lora_target: all                           # learning a response style
+
+### dataset
+# Pretraining data is raw text -- no instructions, no labels:
+#   [{"text": "a document..."}, {"text": "another document..."}]
+# Register it in LLaMA-Factory/data/dataset_info.json as:
+#   "my_domain_corpus": {"file_name": "my_corpus.json", "columns": {"prompt": "text"}}
+dataset: c4_demo                           # swap for your own corpus
+cutoff_len: 2048                           # longer = better long-range learning, more memory
+max_samples: 10000
+overwrite_cache: true
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+
+### output
+output_dir: saves/qwen2.5-1.5b/lora/pretrain
+logging_steps: 10
+save_steps: 500
+plot_loss: true                            # writes a loss curve png -- always look at it
+overwrite_output_dir: true
+report_to: none                            # set to wandb/tensorboard to track properly
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8             # effective batch size = 1 * 8 * n_gpus
+learning_rate: 1.0e-4                      # lower than SFT; you are nudging, not reshaping
+num_train_epochs: 1.0                      # pretraining corpora are usually seen once
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true                                 # use fp16: true on older GPUs (T4)
+gradient_checkpointing: true               # trades ~20% speed for a lot of memory
+ddp_timeout: 180000000
+
+### eval
+# ALWAYS hold data out. Domain perplexity should fall; if general-text
+# perplexity rises sharply you have caused catastrophic forgetting, and the fix
+# is mixing general data back into the corpus.
+val_size: 0.1
+per_device_eval_batch_size: 1
+eval_strategy: steps
+eval_steps: 500
