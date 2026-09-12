@@ -1,0 +1,91 @@
+# LoRA fine-tuning with LLaMA-Factory -- every knob explained
+# ---------------------------------------------------------------------------
+# Run:
+#   llamafactory-cli train llamafactory_lora.yaml
+#
+# Override anything from the command line:
+#   llamafactory-cli train llamafactory_lora.yaml lora_rank=16 learning_rate=2e-4
+
+### model
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+trust_remote_code: true
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+
+# --- the three knobs that actually matter -----------------------------------
+
+lora_rank: 8
+# Capacity of the correction. See lora_from_scratch.py: rank-8 LoRA fully
+# recovers a rank-8 update and barely dents a rank-64 one.
+#    4-8     style, tone, output format -- most tasks genuinely land here
+#    16-32   harder tasks, more diverse data
+#    64-128  genuinely new domain behaviour, large datasets
+#    256+    rarely justified; approaching full fine-tuning's cost without its benefit
+# START AT 8. If it underfits, check your DATA before raising this.
+
+lora_alpha: 16
+# Output is scaled by alpha/rank, so that changing rank does not force you to
+# retune the learning rate. Convention is alpha = 2 * rank. Set it and move on.
+
+lora_target: all
+# Which modules get adapters. The paper used only Q and V; current practice is
+# all linear layers (attention AND feed-forward), which is consistently better
+# for a given parameter budget.
+# To replicate the paper: lora_target: q_proj,v_proj
+
+# --- optional variants, all one-line changes --------------------------------
+lora_dropout: 0.05
+# use_dora: true      # magnitude/direction decomposition; small gain, ~20% slower
+# use_rslora: true    # scales by alpha/sqrt(r); makes high ranks behave better
+# pissa_init: true    # init from principal singular values; faster convergence
+
+### dataset
+dataset: alpaca_en_demo         # replace with your own; see ../../02-fine-tuning/
+template: qwen                  # MUST match the model family
+cutoff_len: 2048
+max_samples: 5000
+overwrite_cache: true
+preprocessing_num_workers: 16
+
+### output
+output_dir: saves/qwen2.5-1.5b/lora/sft
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+report_to: none
+
+### train
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 4
+learning_rate: 1.0e-4
+# LoRA tolerates a learning rate 10-100x HIGHER than full fine-tuning.
+# 1e-4 to 3e-4 is normal here; 1e-5 is a full-fine-tuning rate and is the most
+# common cause of "LoRA did not learn anything for me".
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true                      # fp16: true on a T4
+gradient_checkpointing: true
+ddp_timeout: 180000000
+
+### eval
+val_size: 0.1
+per_device_eval_batch_size: 2
+eval_strategy: steps
+eval_steps: 100
+
+# ---------------------------------------------------------------------------
+# AFTERWARDS
+# ---------------------------------------------------------------------------
+# The adapter lands in output_dir and is only a few MB. Then:
+#
+#   llamafactory-cli chat   ../../02-fine-tuning/examples/llamafactory_chat.yaml
+#   llamafactory-cli export ../../02-fine-tuning/examples/llamafactory_merge.yaml
+#
+# Keep the adapter unmerged if you want to swap between several task-specific
+# adapters against one base model held in memory. Merge it if you want a
+# standalone model to serve with vLLM or quantize.

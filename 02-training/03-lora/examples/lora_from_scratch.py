@@ -141,35 +141,66 @@ def main():
         print(f"    {state}  {name}")
 
     print("\n" + "=" * 74)
-    print("CLAIM 3: training works, and the base model alone cannot do the task")
+    print("CLAIM 3: LoRA recovers a LOW-RANK update -- which is its whole premise")
     print("=" * 74)
-
-    # A task the randomly-initialised base model has no reason to solve.
-    torch.manual_seed(1)
-    target_fn = nn.Linear(D_IN, D_OUT)
-    for p in target_fn.parameters():
-        p.requires_grad = False
+    print(
+        "  The paper's claim is that the update a model needs during fine-tuning has\n"
+        "  low intrinsic rank. We can test that directly: build target models that\n"
+        "  differ from the base by a known rank, and see which ones rank-8 LoRA can\n"
+        "  actually reach.\n"
+    )
 
     X = torch.randn(512, D_IN)
-    Y = target_fn(X)
 
-    opt = torch.optim.AdamW([p for p in lora.parameters() if p.requires_grad], lr=1e-2)
-    loss_fn = nn.MSELoss()
+    def make_target(target_rank, seed):
+        """A copy of `base` whose weights differ by a perturbation of known rank."""
+        g = torch.Generator().manual_seed(seed)
+        tgt = Net(D_IN, D_HIDDEN, D_OUT)
+        tgt.load_state_dict(base.state_dict())
+        with torch.no_grad():
+            for lin in (tgt.fc1, tgt.fc2):
+                d_out, d_in = lin.weight.shape
+                u = torch.randn(d_out, target_rank, generator=g)
+                v = torch.randn(target_rank, d_in, generator=g)
+                delta = u @ v
+                # Rescale every perturbation to the SAME Frobenius norm, so the
+                # only thing varying across rows of the table is rank. Without
+                # this, higher-rank targets come out smaller and the comparison
+                # measures magnitude rather than rank.
+                delta = delta / delta.norm() * (0.30 * lin.weight.norm())
+                lin.weight.add_(delta)
+        return tgt
 
-    start_loss = loss_fn(lora(X), Y).item()
-    for step in range(400):
-        loss = loss_fn(lora(X), Y)
-        opt.zero_grad(set_to_none=True)
-        loss.backward()
-        opt.step()
-    end_loss = loss.item()
+    def train_lora(Y, steps=400):
+        model = apply_lora(Net(D_IN, D_HIDDEN, D_OUT), r=R, alpha=ALPHA)
+        model.load_state_dict(
+            {k.replace("fc1.", "fc1.base.").replace("fc2.", "fc2.base."): v
+             for k, v in base.state_dict().items()}, strict=False)
+        opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=1e-2)
+        loss_fn = nn.MSELoss()
+        before = loss_fn(model(X), Y).item()
+        for _ in range(steps):
+            loss = loss_fn(model(X), Y)
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            opt.step()
+        return before, loss.item()
 
-    base_loss = loss_fn(base(X), Y).item()
-    print(f"  base model loss (frozen, untrained) : {base_loss:.4f}")
-    print(f"  LoRA loss before training           : {start_loss:.4f}")
-    print(f"  LoRA loss after 400 steps           : {end_loss:.4f}")
-    print(f"  improvement                         : {start_loss / end_loss:.1f}x")
-    print("\n  The frozen base weights never moved. All of that came from A and B.")
+    print(f"  {'target rank':>12} {'loss before':>13} {'loss after':>12} {'reduction':>11}")
+    print("  " + "-" * 52)
+    for target_rank in (2, 8, 64, 1024):
+        Y = make_target(target_rank, seed=target_rank)(X).detach()
+        before, after = train_lora(Y)
+        label = f"{target_rank}" + (" (full)" if target_rank == 1024 else "")
+        print(f"  {label:>12} {before:>13.4f} {after:>12.4f} {before / after:>10.0f}x")
+
+    print(
+        "\n  Rank-8 LoRA nearly erases a low-rank difference and barely dents a\n"
+        "  full-rank one. That IS the LoRA bet: fine-tuning adjustments are\n"
+        "  low-rank, so a low-rank correction is enough. When a task needs more,\n"
+        "  raising the rank is the fix -- which is exercise 4.\n"
+        "\n  Throughout, the frozen base weights never moved. All of it came from A and B."
+    )
 
     print("\n" + "=" * 74)
     print("CLAIM 4: merging is exact -- zero inference overhead")
