@@ -1,0 +1,30 @@
+# Merge the LoRA adapter into the base model
+# ---------------------------------------------------------------------------
+# Folds W + BA back into a single set of weights, producing a standalone model
+# you can serve with vLLM, quantize, or upload to Hugging Face.
+#
+# Run:
+#   llamafactory-cli export llamafactory_merge.yaml
+#
+# Why merge: no adapter overhead at inference, works with every serving stack.
+# Why NOT merge: you lose the ability to swap adapters at request time, and the
+# output is a full-size model (GBs) rather than a few MB of adapter.
+#
+# Keep the adapter if you serve several specialised variants off one base model.
+
+### model
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+adapter_name_or_path: saves/qwen2.5-1.5b/lora/sft
+template: qwen
+trust_remote_code: true
+
+### export
+export_dir: models/qwen2.5-1.5b-my-task
+export_size: 2                 # shard size in GB
+export_device: cpu             # use auto if you have spare VRAM
+export_legacy_format: false
+
+# IMPORTANT: do not set quantization_bit here.
+# Merging a LoRA adapter into an already-quantized base model degrades quality.
+# The correct order is: merge into the full-precision base, THEN quantize the
+# merged result. See ../../04-qlora/ for why.

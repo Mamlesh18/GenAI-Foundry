@@ -1,0 +1,20 @@
+# Talk to your fine-tuned model
+# ---------------------------------------------------------------------------
+# Loads the base model and applies your LoRA adapter on top, without merging.
+#
+# Run:
+#   llamafactory-cli chat llamafactory_chat.yaml
+#
+# This is the first thing to do after training. A loss curve tells you the
+# optimisation worked; only talking to the model tells you whether the RESULT
+# is any good. Try the things you trained it on, and the things you did not.
+
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+adapter_name_or_path: saves/qwen2.5-1.5b/lora/sft   # the output_dir from training
+template: qwen                                       # same template as training
+infer_backend: huggingface                           # or vllm, for speed
+trust_remote_code: true
+
+# Drop adapter_name_or_path to chat with the BASE model instead -- run both and
+# compare. That comparison is your real evaluation, and it is the step people
+# skip when they are excited about a falling loss curve.

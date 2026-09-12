@@ -148,15 +148,20 @@ class TinyLM(nn.Module):
         return logits, loss
 
     @torch.no_grad()
-    def generate(self, prompt, max_new=40):
+    def generate(self, prompt, max_new=45):
+        """Greedy decode until END_TAG is produced or max_new tokens are used.
+
+        END_TAG is several characters long, so the stop check has to look at the
+        decoded tail -- comparing a single new token against it never matches.
+        """
         idx = torch.tensor([encode(prompt)])
         for _ in range(max_new):
             logits, _ = self(idx[:, -BLOCK_SIZE:])
             nxt = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
             idx = torch.cat([idx, nxt], dim=1)
-            if decode(nxt[0].tolist()) == END_TAG:
+            if decode(idx[0].tolist()).endswith(END_TAG):
                 break
-        return decode(idx[0].tolist())
+        return decode(idx[0].tolist())[len(prompt):]
 
 
 # ---------------------------------------------------------------------------
@@ -218,30 +223,58 @@ def main():
     print("\n  Both losses look fine. The loss curve will NOT tell you which is correct.")
 
     print("\n" + "=" * 74)
-    print("WHAT THEY ACTUALLY LEARNED")
+    print("1. ANSWERING -- the job you actually trained for")
     print("=" * 74)
-
-    # A country the model saw in training, and one it did not.
-    for instruction in ["what is the capital of japan", "what is the capital of peru"]:
+    print("  Both do this well. Masking is not about whether it can answer.\n")
+    for instruction, _ in PAIRS[:3]:
         prompt = f"{USER_TAG}{instruction}{ASSISTANT_TAG}"
-        print(f"\n  prompt          : {instruction}")
-        print(f"  with masking    : {masked_model.generate(prompt)[len(prompt):]!r}")
-        print(f"  without masking : {unmasked_model.generate(prompt)[len(prompt):]!r}")
+        print(f"  {instruction}")
+        print(f"     masked   : {masked_model.generate(prompt)!r}")
+        print(f"     unmasked : {unmasked_model.generate(prompt)!r}")
+
+    print("\n" + "=" * 74)
+    print("2. WHAT ELSE THEY LEARNED -- generating from the <u> tag alone")
+    print("=" * 74)
+    print(
+        "  Here we give each model ONLY the user tag and let it continue.\n"
+        "  This asks: did it learn to write the USER's half of the conversation?\n"
+    )
+    for name, model in (("masked  ", masked_model), ("unmasked", unmasked_model)):
+        print(f"  {name} : {model.generate(USER_TAG, max_new=60)!r}")
+
+    # Quantify it: how well does each model predict the PROMPT tokens?
+    x_um, y_um = make_batch(mask_prompt=False)          # labels on every position
+    x_m, y_m = make_batch(mask_prompt=True)             # labels on the response only
+    prompt_only = torch.where(y_m == IGNORE_INDEX, y_um, torch.full_like(y_um, IGNORE_INDEX))
+
+    with torch.no_grad():
+        masked_prompt_loss = F.cross_entropy(
+            masked_model(x_m)[0].view(-1, VOCAB_SIZE),
+            prompt_only.reshape(-1), ignore_index=IGNORE_INDEX).item()
+        unmasked_prompt_loss = F.cross_entropy(
+            unmasked_model(x_um)[0].view(-1, VOCAB_SIZE),
+            prompt_only.reshape(-1), ignore_index=IGNORE_INDEX).item()
+
+    print("\n  Loss measured ONLY on prompt tokens (lower = better at writing questions):")
+    print(f"     masked   : {masked_prompt_loss:.3f}")
+    print(f"     unmasked : {unmasked_prompt_loss:.3f}")
 
     print("\n" + "=" * 74)
     print("THE POINT")
     print("=" * 74)
     print(
-        "Masked, every gradient the model received taught it to produce a RESPONSE.\n"
-        "Unmasked, a large share of its capacity went into learning to generate the\n"
-        "USER's questions -- text you will never ask it for. The signal you wanted\n"
-        "was diluted by text that is already given to the model at inference time.\n\n"
-        "On a toy this size the difference is modest. At real scale, on real data,\n"
-        "it is the difference between a model that answers and one that rambles.\n\n"
-        "In production you get this from:\n"
-        "  TRL          -- SFTTrainer with completion-only loss\n"
-        "  LLaMA-Factory-- handled automatically by `stage: sft`\n"
-        "Both set label positions to -100 exactly as shown above."
+        "Both models answer. The difference is what ELSE they spent capacity on.\n\n"
+        "The unmasked model is much better at predicting prompt tokens -- because it\n"
+        "was trained to. Every gradient it received on those 34 positions taught it to\n"
+        "generate text the user will always supply anyway. That is capacity and\n"
+        "training signal spent on a task you will never ask it to do.\n\n"
+        "On a toy with 8 examples this is merely wasteful. At real scale, on real data,\n"
+        "it is the difference between a model that answers and one that carries on and\n"
+        "writes your next question for you.\n\n"
+        "In production you get correct masking from:\n"
+        "  TRL           -- SFTTrainer with completion-only loss\n"
+        "  LLaMA-Factory -- handled automatically by `stage: sft`\n"
+        "Both set label positions to -100 exactly as shown at the top of this output."
     )
 
 

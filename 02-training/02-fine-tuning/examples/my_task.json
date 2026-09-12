@@ -1,0 +1,32 @@
+[
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Support took eleven days to reply.",
+    "output": "negative"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Arrived on time, does exactly what it says.",
+    "output": "neutral"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Does the job. Nothing remarkable either way.",
+    "output": "neutral"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "I have bought three more since.",
+    "output": "positive"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "The battery dies in two hours.",
+    "output": "negative"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Screen is gorgeous but the trackpad rattles.",
+    "output": "mixed"
+  }
+]

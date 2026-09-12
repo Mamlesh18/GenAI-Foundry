@@ -1,0 +1,86 @@
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.\n\nReview: The battery dies in two hours."
+      },
+      {
+        "from": "gpt",
+        "value": "negative"
+      },
+      {
+        "from": "human",
+        "value": "And this one?\n\nReview: Arrived on time, does exactly what it says."
+      },
+      {
+        "from": "gpt",
+        "value": "neutral"
+      }
+    ],
+    "system": "You are a precise sentiment classifier."
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.\n\nReview: I have bought three more since."
+      },
+      {
+        "from": "gpt",
+        "value": "positive"
+      },
+      {
+        "from": "human",
+        "value": "And this one?\n\nReview: Screen is gorgeous but the trackpad rattles."
+      },
+      {
+        "from": "gpt",
+        "value": "mixed"
+      }
+    ],
+    "system": "You are a precise sentiment classifier."
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.\n\nReview: Support took eleven days to reply."
+      },
+      {
+        "from": "gpt",
+        "value": "negative"
+      },
+      {
+        "from": "human",
+        "value": "And this one?\n\nReview: Does the job. Nothing remarkable either way."
+      },
+      {
+        "from": "gpt",
+        "value": "neutral"
+      }
+    ],
+    "system": "You are a precise sentiment classifier."
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.\n\nReview: Genuinely the best purchase I made this year."
+      },
+      {
+        "from": "gpt",
+        "value": "positive"
+      },
+      {
+        "from": "human",
+        "value": "And this one?\n\nReview: Great value, though the manual is useless."
+      },
+      {
+        "from": "gpt",
+        "value": "mixed"
+      }
+    ],
+    "system": "You are a precise sentiment classifier."
+  }
+]

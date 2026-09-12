@@ -1,0 +1,81 @@
+# Supervised fine-tuning (SFT) with LLaMA-Factory
+# ---------------------------------------------------------------------------
+# Teaches a base model to ANSWER instructions instead of continuing text.
+#
+# Loss masking -- the thing sft_from_scratch.py demonstrates -- is handled for
+# you by `stage: sft`. LLaMA-Factory sets prompt label positions to -100 so
+# loss is computed only on the response.
+#
+# Run:
+#   llamafactory-cli train llamafactory_sft.yaml
+#
+# Fits on a free Colab T4 (16GB). For a 7B model use the QLoRA config in
+# ../../04-qlora/examples/ instead.
+
+### model
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+trust_remote_code: true
+
+### method
+stage: sft                      # sft = supervised fine-tuning, with loss masking
+do_train: true
+finetuning_type: lora           # see ../../03-lora/ for what this actually does
+lora_rank: 8                    # 8-16 is plenty for learning a response style
+lora_alpha: 16                  # convention: 2x rank
+lora_dropout: 0.05
+lora_target: all                # all linear layers; the modern default
+
+### dataset
+dataset: my_task                # built by build_dataset.py, registered in dataset_info.json
+template: qwen                  # MUST match the model family -- see the warning below
+cutoff_len: 2048                # examples longer than this are TRUNCATED silently
+max_samples: 100000
+overwrite_cache: true
+preprocessing_num_workers: 16
+dataloader_num_workers: 4
+
+### output
+output_dir: saves/qwen2.5-1.5b/lora/sft
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+report_to: none                 # wandb / tensorboard for real runs
+
+### train
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 4  # effective batch = 2 * 4 = 8
+learning_rate: 1.0e-4           # LoRA tolerates 10-100x higher LR than full fine-tuning
+num_train_epochs: 3.0           # 2-3. More than that and you are memorising.
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true                      # T4 does not support bf16 -- use fp16: true there
+gradient_checkpointing: true
+ddp_timeout: 180000000
+
+### eval
+eval_dataset: my_task_eval      # NEVER the training set
+per_device_eval_batch_size: 2
+eval_strategy: steps
+eval_steps: 100
+
+# ---------------------------------------------------------------------------
+# THE TEMPLATE WARNING
+# ---------------------------------------------------------------------------
+# `template:` must match your model family exactly. Training with one chat
+# template and serving with another is the single most common fine-tuning bug:
+# quality collapses and the loss curve gives you NO warning at all, because
+# training went perfectly -- against the wrong format.
+#
+#   Qwen        -> qwen        Llama 3 -> llama3      Mistral -> mistral
+#   Gemma       -> gemma       Phi     -> phi         ChatML  -> chatml
+#
+# Full list: llamafactory-cli train -h, or the constants in
+# src/llamafactory/data/template.py
+#
+# ---------------------------------------------------------------------------
+# BEFORE YOU RUN THIS
+# ---------------------------------------------------------------------------
+# Measure a prompted baseline first. Roughly half of fine-tuning projects turn
+# out not to beat a well-written prompt, and you can only find that out if you
+# wrote the number down beforehand.

@@ -1,0 +1,12 @@
+[
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Great value, though the manual is useless.",
+    "output": "mixed"
+  },
+  {
+    "instruction": "Classify the sentiment of the product review as exactly one of: positive, negative, neutral, mixed. Reply with the label only.",
+    "input": "Genuinely the best purchase I made this year.",
+    "output": "positive"
+  }
+]
