@@ -14,6 +14,7 @@ fall as it learns which characters follow which.
 """
 
 import math
+import random
 import time
 
 import torch
@@ -38,44 +39,41 @@ LR = 3e-3
 # Data -- character-level. A real run uses a BPE tokenizer over trillions of
 # tokens; the only thing that changes is scale.
 # ---------------------------------------------------------------------------
-TRAIN_TEXT = """
-The transformer is a neural network architecture based entirely on attention.
-Attention lets every token look at every other token and decide what matters.
-The model learns by predicting the next token in a sequence, over and over.
-There are no labels in pretraining. The text itself is the label, because the
-next token is always sitting right there in the data. This is called
-self-supervised learning, and it is what makes training on the internet
-possible. A model that predicts the next token well has learned grammar,
-facts, style, and a surprising amount of reasoning, purely as a side effect
-of that one simple objective repeated trillions of times.
-A tokenizer splits text into pieces and maps each piece to an integer. Models
-never see characters or words, only these integers, which is why they struggle
-to count the letters inside a word. Subword tokenization keeps the vocabulary
-small while still being able to represent any string at all.
-Embeddings place text into a space where similar meanings sit near each other.
-Distance in that space is a measure of meaning, so searching for a passage
-becomes searching for a nearby point, which computers are very good at.
-Training a large model costs millions of dollars and takes weeks on thousands
-of graphics cards. Fine tuning an existing model costs very little and can be
-done on a single card in an afternoon. That difference is why almost everyone
-starts from weights that somebody else has already paid to produce.
-A residual connection adds the input of a layer to its output. This gives the
-gradient a short path back through a deep stack of layers, and it lets each
-layer make a small edit to the representation rather than rewriting it.
-Normalisation keeps the numbers flowing through the network in a stable range,
-so that training does not diverge as the network gets deeper and deeper.
-""" * 12
+# The corpus is generated from a small grammar. That matters: it gives the text
+# real, learnable STRUCTURE, so the model has something to generalise rather
+# than merely memorise.
+#
+# Training and validation sentences are drawn independently from the same
+# generator -- never the same sentences. That is what makes validation loss
+# meaningful: it measures whether the model learned the underlying pattern, not
+# whether it remembered specific text. (Slicing one small repeated corpus into
+# train and val, a very common mistake, measures neither.)
 
-# A genuinely held-out passage. It shares vocabulary and style with the
-# training text but not a single sentence, so validation loss measures
-# GENERALISATION rather than memorisation. Slicing one repeated corpus into
-# train and val -- a very common mistake -- would measure neither.
-VAL_TEXT = """
-The attention mechanism compares a query against every key and uses the result
-to take a weighted average of the values. Scaling the scores keeps the softmax
-from saturating. Several such operations run in parallel as separate heads, and
-each head is free to learn a different kind of relationship between positions.
-""" * 4
+SUBJECTS = ["the model", "a transformer", "the network", "this layer", "the encoder",
+            "each head", "the decoder", "a neuron", "the optimizer", "our system"]
+VERBS = ["predicts", "learns", "computes", "encodes", "produces", "updates",
+         "estimates", "compares", "weights", "transforms"]
+OBJECTS = ["the next token", "an attention score", "a hidden state", "the gradient",
+           "every position", "a probability", "the loss value", "each embedding",
+           "the residual stream", "a key and query"]
+ENDINGS = ["during training", "at every step", "in a single pass", "without labels",
+           "across the sequence", "from the data", "in parallel", "very quickly",
+           "with a causal mask", "after normalisation"]
+
+
+def make_corpus(n_sentences, seed):
+    rng = random.Random(seed)
+    parts = []
+    for _ in range(n_sentences):
+        parts.append(
+            f"{rng.choice(SUBJECTS)} {rng.choice(VERBS)} "
+            f"{rng.choice(OBJECTS)} {rng.choice(ENDINGS)}. "
+        )
+    return "".join(parts)
+
+
+TRAIN_TEXT = make_corpus(3000, seed=1)
+VAL_TEXT = make_corpus(300, seed=999)     # different seed -> different sentences
 
 chars = sorted(set(TRAIN_TEXT + VAL_TEXT))
 VOCAB_SIZE = len(chars)
@@ -246,14 +244,19 @@ def main():
     )
     gap = final_val - final_train
     print(
-        f"Note the train/val gap of {gap:.2f}. The validation passage shares style and\n"
-        "vocabulary with the training text but contains none of its sentences, so\n"
-        "this gap is the price of memorisation: whatever the model learned that was\n"
-        "specific to the training text does not transfer.\n\n"
-        "Push the gap wider by training longer on less text -- that is overfitting,\n"
-        "and at real scale it is exactly why pretraining corpora are aggressively\n"
-        "deduplicated. Duplicated documents get memorised rather than generalised from.\n\n"
-        "Scale this up -- BPE tokens instead of characters, 15 trillion tokens instead\n"
+        f"The train/val gap is {gap:+.3f}. The validation text was drawn from the same\n"
+        "generator but contains none of the training sentences, so a gap near zero\n"
+        "means the model learned the PATTERN rather than memorising the text. Look at\n"
+        "the sample above: those sentences are new, and they are grammatical.\n\n"
+        "That distinction is the entire game. To see the other outcome, run\n"
+        "exercise 4 in the README: shrink the corpus and train longer. Train loss\n"
+        "keeps falling while validation loss climbs -- the model is memorising, and\n"
+        "at real scale that is exactly why pretraining corpora are aggressively\n"
+        "deduplicated. A duplicated document gets memorised instead of generalised from.\n\n"
+        "Two honest caveats about this toy: the grammar here is far simpler than real\n"
+        "language, so perplexity gets unusually low; and character-level modelling is\n"
+        "easier than the subword modelling real systems do.\n\n"
+        "Scale it up -- BPE tokens instead of characters, 15 trillion tokens instead\n"
         f"of {len(train_data):,}, 32 layers instead of {N_LAYERS}, thousands of GPUs for weeks --\n"
         "and you have Llama 3. The loop above does not change."
     )

@@ -130,10 +130,21 @@ pip install torch
 python examples/tiny_pretrain.py
 ```
 
-[`tiny_pretrain.py`](examples/tiny_pretrain.py) pretrains a small character-level transformer from
-random weights on CPU in about a minute. It is deliberately tiny, but it is the *real* algorithm —
-same loss, same shifted-target trick, same loop that trains a 70B model. You will watch loss fall
-from ~4.2 toward ~1.5 and the samples turn from noise into something word-shaped.
+[`tiny_pretrain.py`](examples/tiny_pretrain.py) pretrains a ~600K-parameter character-level
+transformer from random weights on CPU in about 80 seconds. It is deliberately tiny, but it is the
+*real* algorithm — same loss, same shifted-target trick, same loop that trains a 70B model.
+
+On a typical run you will see loss fall from **3.30** (`ln(27)`, uniform guessing over the
+character vocabulary) to about **0.24**, with training and validation loss within ~0.01 of each
+other, and the samples turn from noise into novel grammatical sentences.
+
+That near-zero gap is the point. Validation text is drawn from the same generator as the training
+text but shares none of its sentences, so matching losses mean the model learned the *pattern*
+rather than memorising the data. Exercise 4 makes it produce the opposite result on purpose.
+
+> The corpus is generated from a small grammar rather than scraped prose, so the structure is
+> genuinely learnable in 80 seconds on a CPU. That also makes perplexity unusually low — real
+> language is far harder, and real models land nearer 1.5–2.5 on subword tokens.
 
 ### Continued pretraining with LLaMA-Factory
 
@@ -165,8 +176,11 @@ No instructions, no labels — the text is the signal.
    tokens is the model effectively choosing between?
 3. **Break the shift.** Remove the target-shifting so inputs and targets align at the same
    position. Loss will collapse to near zero. Explain why that is a bug and not a breakthrough.
-4. **Overfit deliberately.** Train on 200 characters for 2,000 steps. Watch it memorise. Now sample
-   from it — what comes out? This is memorisation, and it is exactly what deduplication prevents.
+4. **Overfit deliberately.** Change `make_corpus(3000, seed=1)` to `make_corpus(20, seed=1)` and
+   raise `STEPS` to 3000. Watch training loss keep falling while validation loss *climbs*. Sample
+   from the result — you will get training sentences back verbatim. That is memorisation, and at
+   scale it is exactly what deduplication exists to prevent. Note the step where the two curves
+   part company: that is where you should have stopped.
 5. **Chinchilla maths.** Your budget trains 1B parameters on 20B tokens. Chinchilla-optimal for 20B
    tokens is what model size? For the same compute, would you rather have 2B params/10B tokens or
    0.5B params/40B tokens?
