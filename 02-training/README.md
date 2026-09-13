@@ -124,7 +124,9 @@ rewriting your training script.
 ```bash
 git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git
 cd LLaMA-Factory
-pip install -e ".[torch,metrics]"
+pip install -e .
+pip install -r requirements/metrics.txt
+pip install bitsandbytes            # only needed for QLoRA (module 04)
 
 llamafactory-cli webui        # browser UI, no YAML needed — start here
 ```

@@ -1,0 +1,96 @@
+# DPO with LLaMA-Factory -- preference tuning on top of an SFT model
+# ---------------------------------------------------------------------------
+# Needs (prompt, chosen, rejected) data. Start from an SFT model: DPO sharpens
+# preferences, it does not install capabilities.
+#
+# Run:
+#   llamafactory-cli train llamafactory_dpo.yaml
+#
+# Uses QLoRA so it fits a free T4. The frozen reference model is handled for you
+# -- with LoRA it is simply the base model with the adapter switched off, so it
+# costs no extra memory.
+
+### model
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+# To DPO on top of your own SFT run, point at its adapter:
+# adapter_name_or_path: saves/qwen2.5-1.5b/lora/sft
+trust_remote_code: true
+
+### quantization (drop these two lines for 16-bit LoRA)
+quantization_bit: 4
+quantization_method: bnb
+
+### method
+stage: dpo                       # dpo stage covers DPO, IPO, ORPO and SimPO via pref_loss
+do_train: true
+finetuning_type: lora
+lora_rank: 8
+lora_alpha: 16
+lora_target: all
+
+pref_beta: 0.1
+# How far the policy may drift from the reference. See dpo_from_scratch.py.
+#   smaller -> fits preferences harder, drifts further, higher degradation risk
+#   larger  -> stays close to the SFT model, may barely change
+# 0.1 is the standard default.
+
+pref_loss: sigmoid
+#   sigmoid -> standard DPO
+#   ipo     -> bounded loss, resists overfitting on small preference sets
+#   orpo    -> no reference model; folds preference into the SFT loss
+#   simpo   -> no reference model; length-normalised, counters verbosity drift
+
+# pref_ftx: 0.0
+# Adds an SFT loss on the chosen responses. A small value (e.g. 1.0) can stop
+# the chosen responses' own likelihood from falling during DPO.
+
+### dataset
+dataset: dpo_en_demo             # swap for your own; register with "ranking": true
+template: qwen
+cutoff_len: 2048
+max_samples: 5000
+overwrite_cache: true
+preprocessing_num_workers: 8
+
+### output
+output_dir: saves/qwen2.5-1.5b/lora/dpo
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+report_to: none
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 5.0e-6            # MUCH lower than SFT. DPO is a gentle nudge; high LR wrecks the model.
+num_train_epochs: 1.0            # 1-2 epochs. Preference data overfits fast.
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+fp16: true                       # bf16: true on newer GPUs
+gradient_checkpointing: true
+ddp_timeout: 180000000
+
+### eval
+val_size: 0.05
+per_device_eval_batch_size: 1
+eval_strategy: steps
+eval_steps: 200
+
+# ---------------------------------------------------------------------------
+# WHAT TO WATCH IN THE LOGS
+# ---------------------------------------------------------------------------
+#   rewards/accuracies   fraction of pairs where chosen outscores rejected.
+#                        Heading to ~1.0 quickly on a small set = overfitting.
+#   rewards/margins      should grow steadily, not explode.
+#   logps/chosen         if this falls a lot, the model is lowering BOTH responses;
+#                        consider pref_ftx.
+# And always check response length before vs after. Many "wins" are just longer.
+#
+# ---------------------------------------------------------------------------
+# KTO -- when your feedback is thumbs up / thumbs down, not pairs
+# ---------------------------------------------------------------------------
+#   stage: kto
+#   pref_beta: 0.1
+#   dataset: kto_en_demo
+# Data is unpaired examples with a boolean label; see LLaMA-Factory/data/README.md.

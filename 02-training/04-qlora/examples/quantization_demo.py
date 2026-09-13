@@ -118,10 +118,13 @@ def demo_nf4_vs_int4():
     print(
         "\n  NF4 places its 16 levels so each holds equal probability mass under a\n"
         "  normal distribution -- dense near zero, sparse in the tails, matching\n"
-        "  where weights actually live. On uniform data that advantage disappears,\n"
-        "  because there the evenly spaced INT4 levels are already well matched.\n"
-        "  NF4 is not universally better; it is better for the distribution it was\n"
-        "  designed for, which happens to be how neural network weights look."
+        "  where weights actually live. On normal data it beats INT4; on uniform\n"
+        "  data the result REVERSES, because evenly spaced levels are the right fit\n"
+        "  for evenly spread values.\n\n"
+        "  Two honest notes. The gap on normal data is modest per layer -- it is a\n"
+        "  consistent few-percent gain that adds up across a whole model, not a\n"
+        "  dramatic one. And NF4 is not 'better 4-bit' in general: it is better for\n"
+        "  the distribution it was designed for, which is how trained weights look."
     )
 
 
@@ -168,11 +171,14 @@ def demo_end_to_end():
     print(f"  cosine similarity of outputs : {torch.nn.functional.cosine_similarity(
         exact.flatten(), approx.flatten(), dim=0).item():.6f}")
     print(
-        "\n  This is the number that matters -- not the weight error, but its effect\n"
-        "  on what the layer computes. Errors are partly random and partly cancel\n"
-        "  across a 1024-term dot product, so the output degrades less than the\n"
-        "  weights do. Stack many layers and it accumulates, which is why 2-3 bit\n"
-        "  quantization degrades sharply while 4-bit largely holds up."
+        "\n  For a single linear layer the relative output error tracks the relative\n"
+        "  weight error almost exactly -- quantization noise does not magically\n"
+        "  cancel. What survives is DIRECTION: the cosine similarity says the layer\n"
+        "  still points its output the same way, and downstream layers mostly care\n"
+        "  about direction, with normalisation absorbing much of the magnitude error.\n\n"
+        "  A real network stacks dozens of these, so error compounds with depth.\n"
+        "  That is why 4-bit is broadly tolerable for a FROZEN base while 2-3 bit\n"
+        "  degrades sharply -- and why you verify on your own task, not on this."
     )
 
 
@@ -183,8 +189,8 @@ def demo_memory():
     print(f"  {'model':>8} {'fp32':>9} {'fp16':>9} {'int8':>9} {'4-bit':>9}")
     print("  " + "-" * 48)
     for name, n in (("7B", 7e9), ("13B", 13e9), ("70B", 70e9)):
-        row = "  ".join(f"{n * b / 1e9:>7.1f}GB" for b in (4, 2, 1, 0.5))
-        print(f"  {name:>8}  {row}")
+        row = " ".join(f"{n * b / 1e9:>7.1f}GB" for b in (4, 2, 1, 0.5))
+        print(f"  {name:>8} {row}")
 
     print(
         "\n  Weights only -- add optimizer states, gradients and activations for the\n"

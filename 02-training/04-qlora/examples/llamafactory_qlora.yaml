@@ -1,0 +1,78 @@
+# QLoRA with LLaMA-Factory -- a 7B model on a free Colab T4
+# ---------------------------------------------------------------------------
+# Identical to LoRA except for the ### quantization block: the frozen base model
+# is loaded in 4-bit NF4 via bitsandbytes. Adapters stay in 16-bit.
+#
+# Install:
+#   pip install bitsandbytes
+# Run:
+#   llamafactory-cli train llamafactory_qlora.yaml
+#
+# Expect ~20-40% slower steps than 16-bit LoRA, for ~4x less base-model memory.
+
+### model
+model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+trust_remote_code: true
+
+### quantization -- the only part that differs from LoRA
+quantization_bit: 4               # store the frozen base in 4 bits
+quantization_method: bnb          # bitsandbytes = on-the-fly, no calibration. This IS QLoRA.
+quantization_type: nf4            # NF4 levels (see quantization_demo.py); fp4 is the alternative
+double_quantization: true         # quantize the per-block scale constants too (~0.37 bits/param saved)
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target: all
+
+### dataset
+dataset: alpaca_en_demo           # replace with your own; see ../../02-fine-tuning/
+template: qwen
+cutoff_len: 1024                  # sequence length drives activation memory; raise with care on 16GB
+max_samples: 5000
+overwrite_cache: true
+preprocessing_num_workers: 8
+
+### output
+output_dir: saves/qwen2.5-7b/qlora/sft
+logging_steps: 10
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+report_to: none
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 16   # effective batch 16 without the memory cost of batch 16
+learning_rate: 2.0e-4             # same range as LoRA
+num_train_epochs: 2.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+fp16: true                        # T4 has no bf16 support. On A100/L4/RTX 30xx+ use bf16: true
+gradient_checkpointing: true      # essential at this memory budget
+optim: paged_adamw_8bit           # paged optimizer: spills to CPU RAM instead of OOM-ing
+ddp_timeout: 180000000
+
+### eval
+val_size: 0.05
+per_device_eval_batch_size: 1
+eval_strategy: steps
+eval_steps: 200
+
+# ---------------------------------------------------------------------------
+# IF YOU RUN OUT OF MEMORY, in this order:
+#   1. cutoff_len: 1024 -> 512          (activations scale with sequence length)
+#   2. lora_rank: 16 -> 8
+#   3. lora_target: all -> q_proj,v_proj
+#   4. a smaller base model
+# Never "fix" OOM by dropping gradient_accumulation_steps -- that changes your
+# effective batch size and therefore your results, not just your memory.
+#
+# MERGING: merge the adapter into the FULL-PRECISION base (Qwen/Qwen2.5-7B-Instruct
+# loaded without quantization_bit), THEN quantize the merged model for serving.
+# Merging into the 4-bit base bakes quantization error into your adapter.
+# ---------------------------------------------------------------------------
