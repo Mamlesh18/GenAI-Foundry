@@ -192,4 +192,4 @@ numpy, so you can see exactly what "audio becomes frames" means.
 
 ---
 
-**Previous track:** [07 · Agents](../07-agents/) · **Next:** [skills](../skills/) · [projects](../projects/)
+**Previous track:** [07 · Agents](../07-agents/) · **Next track:** [09 · MCP](../09-mcp/)

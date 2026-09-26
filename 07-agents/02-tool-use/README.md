@@ -199,7 +199,7 @@ covers the layered defences with measurements.
 
 Writing a schema per tool per application does not scale — every team rebuilds the same integrations.
 The **Model Context Protocol** standardises it: a server exposes tools once, and any client can use
-them. That is the next folder in this repo, and Anthropic's Messages API can connect to remote MCP
+them. That is [09 · MCP](../../09-mcp/), and Anthropic's Messages API can connect to remote MCP
 servers directly.
 
 ---

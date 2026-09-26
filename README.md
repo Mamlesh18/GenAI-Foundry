@@ -15,7 +15,7 @@ There are three parallel tracks. Use them together.
 
 | Track | Folder | What it gives you |
 |---|---|---|
-| **Concepts** | `01-foundations` … `08-multimodal` | The *why*. Ordered theory, from attention to agents. |
+| **Concepts** | `01-foundations` … `09-mcp` | The *why*. Ordered theory, from attention to agents. |
 | **Skills** | `skills/` | The *how*. Self-contained, hands-on capabilities you can practise in an afternoon. |
 | **Projects** | `projects/` | The *proof*. Buildable things that combine several skills. |
 | **Resources** | `resources/` | Curated papers, courses, blogs, tools, datasets. |
@@ -35,6 +35,7 @@ folder makes you ship something that needs one.
 6. **[`06-rag`](06-rag/)** — Retrieval-augmented generation for grounded answers.
 7. **[`07-agents`](07-agents/)** — Tool use and multi-step agent systems.
 8. **[`08-multimodal`](08-multimodal/)** — Text, image, audio and video together.
+9. **[`09-mcp`](09-mcp/)** — The Model Context Protocol: one integration instead of N x M.
 
 ---
 
