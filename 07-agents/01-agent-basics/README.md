@@ -212,4 +212,4 @@ between-step validation and show the gap narrowing.
 
 ---
 
-**Track:** [07 · Agents](../) · **Next:** 02 · Tool Use
+**Track:** [07 · Agents](../) · **Next:** [02 · Tool Use](../02-tool-use/)

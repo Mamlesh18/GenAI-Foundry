@@ -64,7 +64,7 @@ Four things to notice, because they are where the work is:
 | # | Module | What it covers |
 |---|---|---|
 | 01 | [Agent Basics](01-agent-basics/) | The loop, ReAct, workflow vs agent, and why reliability compounds |
-| 02 | Tool Use | Schemas, argument validation, error recovery, MCP |
+| 02 | [Tool Use](02-tool-use/) | Schemas, argument validation, error recovery, MCP |
 | 03 | Memory and Context | The context budget, scratchpads, summarisation, long-term memory |
 | 04 | Agent Patterns | Chaining, routing, parallelisation, orchestrator-workers, evaluator-optimizer, reflection |
 | 05 | Multi-Agent | Supervisors, handoffs, debate — and when one agent is better |
